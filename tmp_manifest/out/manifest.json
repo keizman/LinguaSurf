@@ -1,0 +1,65 @@
+{
+  "manifest_version": 2,
+  "name": "Side Translation - \u6d78\u5165\u5f0f\u7ffb\u8bd1\u52a9\u624b",
+  "description": "Side Translation turns browsing into language learning. AI uses \"i+1\" theory, supports 20+ languages.",
+  "version": "1.8.9",
+  "icons": {
+    "16": "icon/16.png",
+    "32": "icon/32.png",
+    "48": "icon/48.png",
+    "64": "icon/64.png",
+    "128": "icon/128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{ec1a757b-3969-4e9a-86e9-c9cd54028a1f}",
+      "update_url": "https://storage.planktonfly.com/updates/update.json",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "storage",
+    "notifications",
+    "activeTab",
+    "webNavigation",
+    "alarms",
+    "idle",
+    "<all_urls>",
+    "https://api.github.com/*"
+  ],
+  "commands": {
+    "translate-page": {
+      "suggested_key": {
+        "default": "Alt+Z",
+        "mac": "Command+Z"
+      },
+      "description": "\u4e00\u952e\u7ffb\u8bd1"
+    }
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "browser_action": {
+    "default_title": "\u6d78\u5165\u5f0f\u5b66\u8bed\u8a00\u52a9\u624b (Immersive Language Learning Assistant)",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "open_in_tab": true,
+    "page": "options.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "css": [
+        "content-scripts/content.css"
+      ],
+      "js": [
+        "content-scripts/content.js"
+      ]
+    }
+  ]
+}

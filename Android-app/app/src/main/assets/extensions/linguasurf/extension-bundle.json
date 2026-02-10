@@ -1,0 +1,13 @@
+﻿{
+    "extensionId":  "{ec1a757b-3969-4e9a-86e9-c9cd54028a1f}",
+    "runtimeResourceUrl":  "resource://android/assets/extensions/linguasurf/",
+    "bundledDirectory":  {
+                             "relativeDir":  "app/src/main/assets/extensions/linguasurf",
+                             "sourcePath":  "E:\\git\\goog_trans\\tranlation-overlay-extension\\.output\\firefox-mv2",
+                             "sourceLastWriteTimeUtc":  "2026-02-10T03:18:21.4709545Z",
+                             "manifestRelativePath":  "app/src/main/assets/extensions/linguasurf/manifest.json",
+                             "manifestPresent":  true
+                         },
+    "integratedAtUtc":  "2026-02-10T07:30:10.7891130Z",
+    "integratedByScript":  "build-tools/Integrate-AndroidBuiltInExtension.ps1"
+}

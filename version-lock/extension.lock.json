@@ -1,0 +1,21 @@
+{
+  "source": {
+    "strategy": "pinned-dir",
+    "artifactDir": "E:\\git\\goog_trans\\tranlation-overlay-extension\\web-ext-artifacts",
+    "filePattern": "*.xpi",
+    "pinnedXpiPath": "E:\\\\git\\\\goog_trans\\\\tranlation-overlay-extension\\\\web-ext-artifacts\\\\d944dad170114a7d9c4f-1.8.9.xpi",
+    "pinnedDirPath": "E:\\\\git\\\\goog_trans\\\\tranlation-overlay-extension\\\\.output\\\\firefox-mv2"
+  },
+  "extension": {
+    "id": "{ec1a757b-3969-4e9a-86e9-c9cd54028a1f}",
+    "assetRelativePath": "app/src/main/assets/extensions/linguasurf/translation-overlay.xpi",
+    "runtimeResourceUrl": "resource://android/assets/extensions/linguasurf/",
+    "metadataFileName": "extension-bundle.json"
+  },
+  "android": {
+    "appRoot": "E:\\git\\goog_trans\\LinguaSurf\\Android-app",
+    "appPackage": "org.mozilla.fenix",
+    "fenixApplicationPath": "app/src/main/java/org/mozilla/fenix/FenixApplication.kt"
+  }
+}
+
