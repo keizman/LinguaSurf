@@ -10,6 +10,47 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Ensure-AndroidNativeBridgePermissions {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ManifestPath
+  )
+
+  if (-not (Test-Path -LiteralPath $ManifestPath)) {
+    throw "Manifest not found: $ManifestPath"
+  }
+
+  $manifestRaw = Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8
+  $manifest = $manifestRaw | ConvertFrom-Json
+
+  $permissions = @()
+  if ($manifest.PSObject.Properties.Name -contains "permissions" -and $manifest.permissions) {
+    $permissions = @($manifest.permissions)
+  }
+
+  $requiredPermissions = @(
+    "nativeMessaging",
+    "geckoViewAddons",
+    "nativeMessagingFromContent"
+  )
+  $missingPermissions = @()
+
+  foreach ($permission in $requiredPermissions) {
+    if (-not ($permissions -contains $permission)) {
+      $permissions += $permission
+      $missingPermissions += $permission
+    }
+  }
+
+  if ($missingPermissions.Count -gt 0) {
+    $manifest | Add-Member -NotePropertyName permissions -NotePropertyValue $permissions -Force
+    $manifest | ConvertTo-Json -Depth 64 -Compress | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
+    Write-Host (
+      "- Patched manifest permissions with [{0}]: {1}" -f ($missingPermissions -join ", "), $ManifestPath
+    )
+  }
+}
+
 $scriptDir = Split-Path -Parent $PSCommandPath
 $repoRoot = Split-Path -Parent $scriptDir
 
@@ -73,6 +114,7 @@ if ($SourceDir) {
   if (-not (Test-Path -LiteralPath $manifestPath)) {
     throw "Failed to copy manifest.json into $targetXpiDir"
   }
+  Ensure-AndroidNativeBridgePermissions -ManifestPath $manifestPath
 
   $assetRelativeDir = (Split-Path $assetRelativePath -Parent).Replace("\", "/")
 
@@ -129,6 +171,7 @@ else {
   if (-not (Test-Path -LiteralPath $manifestPath)) {
     throw "Failed to unpack extension manifest.json into $targetXpiDir"
   }
+  Ensure-AndroidNativeBridgePermissions -ManifestPath $manifestPath
 
   $assetRelativeDir = (Split-Path $assetRelativePath -Parent).Replace("\", "/")
 

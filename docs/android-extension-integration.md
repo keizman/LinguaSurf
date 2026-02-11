@@ -124,3 +124,31 @@ to include the built-in translation extension for management/verification.
 `Android-app/app/src/main/java/com/planktonfly/linguasurf/components/LinguaSurfRecommendedAddonsProvider.kt`
 - Only one recommended add-on is exposed by default: `uBlock Origin`.
 - This removes AMO collection fetches on every open of the add-ons screen and avoids collection 404 delays.
+
+8. App bridge for system text-selection banner toggle:
+- Native host/port name: `linguasurfAppBridge`.
+- Commands:
+  - `SET_SELECTION_BANNER_DISABLED` with payload `{ disabled: boolean }`
+  - `GET_SELECTION_BANNER_DISABLED`
+- Android-side handlers are in:
+  - `Android-app/app/src/main/java/org/mozilla/fenix/extension/linguasurf/LinguaSurfBuiltInExtensionInstaller.kt`
+  - `Android-app/app/src/main/java/org/mozilla/fenix/extension/linguasurf/LinguaSurfAppSettings.kt`
+- Browser UI suppression point:
+  - `Android-app/app/src/main/java/org/mozilla/fenix/HomeActivity.kt`
+- Behavior requirement:
+  - Bridge failures must not break extension logic. Extension only logs warnings when native host is unavailable.
+
+9. Native messaging permission guard:
+- Integration script now enforces Android bridge permissions in bundled extension `manifest.json` during Android integration:
+  - `nativeMessaging`
+  - `geckoViewAddons`
+  - `nativeMessagingFromContent`
+- File: `build-tools/Integrate-AndroidBuiltInExtension.ps1`
+- This avoids silent permission loss from upstream build tooling and keeps app bridge calls available in APK builds.
+
+10. Selection banner issue postmortem and runbook:
+- See `docs/selection-banner-bridge-postmortem.md` for:
+  - root causes,
+  - final fix set,
+  - release-time verification checklist,
+  - regression prevention rules.

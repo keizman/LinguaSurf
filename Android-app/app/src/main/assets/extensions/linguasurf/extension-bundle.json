@@ -4,10 +4,10 @@
     "bundledDirectory":  {
                              "relativeDir":  "app/src/main/assets/extensions/linguasurf",
                              "sourcePath":  "E:\\git\\goog_trans\\tranlation-overlay-extension\\.output\\firefox-mv2",
-                             "sourceLastWriteTimeUtc":  "2026-02-10T03:18:21.4709545Z",
+                             "sourceLastWriteTimeUtc":  "2026-02-10T15:42:32.5410067Z",
                              "manifestRelativePath":  "app/src/main/assets/extensions/linguasurf/manifest.json",
                              "manifestPresent":  true
                          },
-    "integratedAtUtc":  "2026-02-10T07:30:10.7891130Z",
+    "integratedAtUtc":  "2026-02-10T15:43:14.2126860Z",
     "integratedByScript":  "build-tools/Integrate-AndroidBuiltInExtension.ps1"
 }

@@ -76,6 +76,20 @@ class GeckoSelectionActionDelegateTest {
         val geckoDelegate = TestGeckoSelectionActionDelegate(mock(), customDelegate)
         assertFalse(geckoDelegate.performAction("test", mock()))
     }
+
+    @Test
+    fun `getAllActions should be empty when custom delegate has no actions`() {
+        val customDelegate = object : SelectionActionDelegate {
+            override fun getAllActions(): Array<String> = emptyArray()
+            override fun isActionAvailable(id: String, selectedText: String): Boolean = false
+            override fun getActionTitle(id: String): CharSequence? = null
+            override fun performAction(id: String, selectedText: String): Boolean = false
+            override fun sortedActions(actions: Array<String>): Array<String> = actions
+        }
+
+        val geckoDelegate = TestGeckoSelectionActionDelegate(mock(), customDelegate)
+        Assert.assertTrue(geckoDelegate.allActions.isEmpty())
+    }
 }
 
 /**

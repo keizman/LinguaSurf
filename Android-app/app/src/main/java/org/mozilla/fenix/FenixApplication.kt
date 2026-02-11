@@ -726,7 +726,10 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
                 onUpdatePermissionRequest = components.addonUpdater::onUpdatePermissionRequest,
             )
             // LinguaSurf: install bundled translation extension from APK assets.
-            LinguaSurfBuiltInExtensionInstaller.installIfSupported(components.core.engine) { message, throwable ->
+            LinguaSurfBuiltInExtensionInstaller.installIfSupported(
+                runtime = components.core.engine,
+                appContext = this,
+            ) { message, throwable ->
                 logger.error(message, throwable)
             }
         } catch (e: UnsupportedOperationException) {

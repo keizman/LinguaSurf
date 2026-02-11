@@ -21,6 +21,9 @@ open class GeckoSelectionActionDelegate(
     @get:VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal val customDelegate: SelectionActionDelegate,
 ) : BasicSelectionActionDelegate(activity) {
+    private val customActions: Array<String> by lazy { customDelegate.getAllActions() }
+    private val suppressDefaultActions: Boolean
+        get() = customActions.isEmpty()
 
     companion object {
         /**
@@ -37,7 +40,11 @@ open class GeckoSelectionActionDelegate(
     }
 
     override fun getAllActions(): Array<String> {
-        return customDelegate.sortedActions(super.getAllActions() + customDelegate.getAllActions())
+        if (suppressDefaultActions) {
+            return customActions
+        }
+
+        return customDelegate.sortedActions(super.getAllActions() + customActions)
     }
 
     override fun isActionAvailable(id: String): Boolean {
@@ -46,13 +53,22 @@ open class GeckoSelectionActionDelegate(
         val customActionIsAvailable = !selectedText.isNullOrEmpty() &&
             customDelegate.isActionAvailable(id, selectedText)
 
+        if (suppressDefaultActions) {
+            return customActionIsAvailable
+        }
+
         return customActionIsAvailable ||
             super.isActionAvailable(id)
     }
 
     override fun prepareAction(id: String, item: MenuItem) {
         val title = customDelegate.getActionTitle(id)
-            ?: return super.prepareAction(id, item)
+        if (title == null) {
+            if (!suppressDefaultActions) {
+                super.prepareAction(id, item)
+            }
+            return
+        }
 
         item.title = title
     }
@@ -60,7 +76,11 @@ open class GeckoSelectionActionDelegate(
     override fun performAction(id: String, item: MenuItem): Boolean {
         // Temporary, removed once https://bugzilla.mozilla.org/show_bug.cgi?id=1694983 is fixed
         try {
-            val selectedText = mSelection?.text ?: return super.performAction(id, item)
+            val selectedText = mSelection?.text ?: return if (suppressDefaultActions) false else super.performAction(id, item)
+
+            if (suppressDefaultActions) {
+                return customDelegate.performAction(id, selectedText)
+            }
 
             return customDelegate.performAction(id, selectedText) || super.performAction(id, item)
         } catch (e: SecurityException) {

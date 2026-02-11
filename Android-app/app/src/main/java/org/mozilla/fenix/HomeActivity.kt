@@ -17,9 +17,12 @@ import android.os.Bundle
 import android.os.StrictMode
 import android.text.format.DateUtils
 import android.util.AttributeSet
+import android.util.Log
 import android.view.ActionMode
 import android.view.KeyEvent
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -59,6 +62,7 @@ import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.WebExtensionState
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.EngineView
+import mozilla.components.concept.engine.selection.SelectionActionDelegate
 import mozilla.components.concept.storage.HistoryMetadataKey
 import mozilla.components.feature.contextmenu.DefaultSelectionActionDelegate
 import mozilla.components.feature.customtabs.isCustomTabIntent
@@ -124,6 +128,7 @@ import org.mozilla.fenix.ext.recordEventInNimbus
 import org.mozilla.fenix.ext.setNavigationIcon
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.extension.WebExtensionPromptFeature
+import org.mozilla.fenix.extension.linguasurf.LinguaSurfAppSettings
 import org.mozilla.fenix.home.HomeFragment
 import org.mozilla.fenix.home.TopSitesRefresher
 import org.mozilla.fenix.home.intent.AssistIntentProcessor
@@ -954,7 +959,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         attrs: AttributeSet,
     ): View? = when (name) {
         EngineView::class.java.name -> components.core.engine.createView(context, attrs).apply {
-            selectionActionDelegate = DefaultSelectionActionDelegate(
+            val defaultSelectionActionDelegate = DefaultSelectionActionDelegate(
                 BrowserStoreSearchAdapter(
                     components.core.store,
                     tabId = getIntentSessionId(intent.toSafeIntent()),
@@ -965,13 +970,46 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
                 callTextClicked = { call(it) },
                 actionSorter = ::actionSorter,
             )
+
+            selectionActionDelegate = AppAwareSelectionActionDelegate(defaultSelectionActionDelegate) {
+                shouldSuppressSystemSelectionBannerByPolicy()
+            }
+
+            Log.i(
+                LINGUASURF_SELECTION_TAG,
+                "SelectionActionDelegate configured with app-aware policy (suppressed=${shouldSuppressSystemSelectionBannerByPolicy()})",
+            )
         }.asView()
         else -> super.onCreateView(parent, name, context, attrs)
     }
 
     final override fun onActionModeStarted(mode: ActionMode?) {
+        val suppressSelectionBanner = shouldSuppressSystemSelectionBanner(mode)
+        Log.i(
+            LINGUASURF_SELECTION_TAG,
+            "ActionMode started: type=${mode?.type}, menuSize=${mode?.menu?.size() ?: -1}, suppress=$suppressSelectionBanner",
+        )
+        if (suppressSelectionBanner) {
+            Log.i(LINGUASURF_SELECTION_TAG, "Suppressed system text-selection action mode")
+            mode?.finish()
+            return
+        }
         actionMode = mode
         super.onActionModeStarted(mode)
+    }
+
+    final override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
+        val suppressSelectionBanner = shouldSuppressSystemSelectionBannerBeforeStart(type)
+        Log.i(
+            LINGUASURF_SELECTION_TAG,
+            "ActionMode pre-start: type=$type, suppress=$suppressSelectionBanner",
+        )
+        if (!suppressSelectionBanner) {
+            return super.onWindowStartingActionMode(callback, type)
+        }
+
+        Log.i(LINGUASURF_SELECTION_TAG, "Blocked system text-selection action mode before start")
+        return super.onWindowStartingActionMode(BlockingSelectionActionModeCallback, type)
     }
 
     final override fun onActionModeFinished(mode: ActionMode?) {
@@ -981,6 +1019,73 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
 
     fun finishActionMode() {
         actionMode?.finish().also { actionMode = null }
+    }
+
+    private fun shouldSuppressSystemSelectionBanner(mode: ActionMode?): Boolean {
+        val destinationId = navHost.navController.currentDestination?.id
+        val isBrowserDestination = destinationId == R.id.browserFragment
+        if (!isBrowserDestination) {
+            return false
+        }
+
+        val isFloatingSelectionActionMode = mode?.type == ActionMode.TYPE_FLOATING
+        if (!shouldSuppressSystemSelectionBannerByPolicy()) {
+            return false
+        }
+
+        return isFloatingSelectionActionMode || isLikelyTextSelectionActionMode(mode)
+    }
+
+    private fun shouldSuppressSystemSelectionBannerBeforeStart(type: Int): Boolean {
+        if (!isPotentialSelectionActionModeType(type)) {
+            return false
+        }
+
+        val destinationId = navHost.navController.currentDestination?.id
+        val isBrowserDestination = destinationId == R.id.browserFragment
+        if (!isBrowserDestination) {
+            return false
+        }
+
+        return shouldSuppressSystemSelectionBannerByPolicy()
+    }
+
+    private fun isPotentialSelectionActionModeType(type: Int): Boolean {
+        return type == ActionMode.TYPE_FLOATING || type == ActionMode.TYPE_PRIMARY
+    }
+
+    private fun shouldSuppressSystemSelectionBannerByPolicy(): Boolean {
+        return LINGUASURF_FORCE_DISABLE_SYSTEM_SELECTION_BANNER ||
+            LinguaSurfAppSettings.isSystemSelectionBannerDisabled(this)
+    }
+
+    private fun isLikelyTextSelectionActionMode(mode: ActionMode?): Boolean {
+        val menu = mode?.menu ?: return false
+        for (index in 0 until menu.size()) {
+            val item = menu.getItem(index)
+            when (item.itemId) {
+                android.R.id.copy,
+                android.R.id.cut,
+                android.R.id.paste,
+                android.R.id.selectAll,
+                android.R.id.shareText,
+                android.R.id.textAssist -> return true
+            }
+
+            val title = item.title?.toString()?.lowercase(Locale.ROOT) ?: continue
+            if (
+                title.contains("copy") ||
+                title.contains("cut") ||
+                title.contains("paste") ||
+                title.contains("search") ||
+                title.contains("share") ||
+                title.contains("select")
+            ) {
+                return true
+            }
+        }
+
+        return false
     }
 
     @Suppress("MagicNumber")
@@ -1462,6 +1567,9 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
     }
 
     companion object {
+        private const val LINGUASURF_SELECTION_TAG = "LinguaSurfSelection"
+        // Keep this false in normal builds so extension/app setting controls behavior.
+        private const val LINGUASURF_FORCE_DISABLE_SYSTEM_SELECTION_BANNER = false
         const val OPEN_TO_BROWSER = "open_to_browser"
         const val OPEN_TO_BROWSER_AND_LOAD = "open_to_browser_and_load"
         const val OPEN_TO_SEARCH = "open_to_search"
@@ -1475,5 +1583,58 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         private const val PWA_RECENTLY_USED_THRESHOLD = DateUtils.DAY_IN_MILLIS * 30L
 
         private const val REQUEST_CODE_CAMERA_PERMISSIONS = 1
+
+        private object BlockingSelectionActionModeCallback : ActionMode.Callback {
+            override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
+
+            override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
+
+            override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean = false
+
+            override fun onDestroyActionMode(mode: ActionMode?) = Unit
+        }
+
+        private object NoSelectionActionDelegate : SelectionActionDelegate {
+            override fun getAllActions(): Array<String> = emptyArray()
+
+            override fun isActionAvailable(id: String, selectedText: String): Boolean = false
+
+            override fun getActionTitle(id: String): CharSequence? = null
+
+            override fun performAction(id: String, selectedText: String): Boolean = false
+
+            override fun sortedActions(actions: Array<String>): Array<String> = actions
+        }
+
+        private class AppAwareSelectionActionDelegate(
+            private val defaultDelegate: SelectionActionDelegate,
+            private val shouldSuppress: () -> Boolean,
+        ) : SelectionActionDelegate {
+            private fun activeDelegate(): SelectionActionDelegate {
+                return if (shouldSuppress()) {
+                    NoSelectionActionDelegate
+                } else {
+                    defaultDelegate
+                }
+            }
+
+            override fun getAllActions(): Array<String> = activeDelegate().getAllActions()
+
+            override fun isActionAvailable(id: String, selectedText: String): Boolean {
+                return activeDelegate().isActionAvailable(id, selectedText)
+            }
+
+            override fun getActionTitle(id: String): CharSequence? {
+                return activeDelegate().getActionTitle(id)
+            }
+
+            override fun performAction(id: String, selectedText: String): Boolean {
+                return activeDelegate().performAction(id, selectedText)
+            }
+
+            override fun sortedActions(actions: Array<String>): Array<String> {
+                return activeDelegate().sortedActions(actions)
+            }
+        }
     }
 }

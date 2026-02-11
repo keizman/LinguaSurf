@@ -84,7 +84,7 @@ android {
         minSdk config.minSdkVersion
         targetSdk config.targetSdkVersion
         versionCode 1
-        versionName Config.generateDebugVersionName()
+        versionName "0.1.0"
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments clearPackageData: 'true'
@@ -376,15 +376,21 @@ android.applicationVariants.configureEach { variant ->
     project.logger.debug("Build type:        " + variant.buildType.name)
     project.logger.debug("Flavor:            " + variant.flavorName)
     project.logger.debug("Telemetry enabled: " + !isDebug)
+    def branchVersionOverride = project.findProperty("localProperties.branchBuild.fenix.version")?.toString()
+    if (branchVersionOverride != null && branchVersionOverride.trim().isEmpty()) {
+        branchVersionOverride = null
+    }
 
     if (useReleaseVersioning) {
         // The Google Play Store does not allow multiple APKs for the same app that all have the
         // same version code. Therefore we need to have different version codes for our ARM and x86
         // builds.
 
-        def versionName = variant.buildType.name == 'nightly' ?
-                "${Config.nightlyVersionName(project)}" :
-                "${Config.releaseVersionName(project)}"
+        def versionName = branchVersionOverride != null ?
+                branchVersionOverride :
+                (variant.buildType.name == 'nightly' ?
+                        "${Config.nightlyVersionName(project)}" :
+                        "${Config.releaseVersionName(project)}")
         project.logger.debug("versionName override: $versionName")
 
         variant.outputs.each { output ->
@@ -400,8 +406,8 @@ android.applicationVariants.configureEach { variant ->
             }
             output.versionCodeOverride = versionCodeOverride
         }
-    } else if (gradle.hasProperty("localProperties.branchBuild.fenix.version")) {
-        def versionName = gradle.getProperty("localProperties.branchBuild.fenix.version")
+    } else if (branchVersionOverride != null) {
+        def versionName = branchVersionOverride
         project.logger.debug("versionName override: $versionName")
         variant.outputs.each { output ->
             output.versionNameOverride = versionName
