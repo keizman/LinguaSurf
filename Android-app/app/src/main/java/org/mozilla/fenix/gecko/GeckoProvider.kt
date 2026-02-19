@@ -15,6 +15,7 @@ import mozilla.components.concept.storage.LoginsStorage
 import mozilla.components.experiment.NimbusExperimentDelegate
 import mozilla.components.lib.crash.handler.CrashHandlerService
 import mozilla.components.lib.crash.store.CrashAction
+import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.service.sync.autofill.GeckoCreditCardsAddressesStorageDelegate
 import mozilla.components.service.sync.logins.GeckoLoginStorageDelegate
 import org.mozilla.fenix.Config
@@ -22,11 +23,14 @@ import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.nimbus.FxNimbus
+import org.mozilla.geckoview.GeckoPreferenceController
+import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 
 object GeckoProvider {
     private var runtime: GeckoRuntime? = null
+    private val logger = Logger("GeckoProvider")
 
     @Synchronized
     fun getOrCreateRuntime(
@@ -59,6 +63,7 @@ object GeckoProvider {
         }
 
         val geckoRuntime = GeckoRuntime.create(context, runtimeSettings)
+        setUnsignedAddonPreference()
 
         geckoRuntime.autocompleteStorageDelegate = GeckoAutocompleteStorageDelegate(
             GeckoCreditCardsAddressesStorageDelegate(
@@ -81,6 +86,39 @@ object GeckoProvider {
         )
 
         return geckoRuntime
+    }
+
+    private fun setUnsignedAddonPreference() {
+        val pref = "xpinstall.signatures.required"
+        GeckoPreferenceController.setGeckoPref(
+            pref,
+            false,
+            GeckoPreferenceController.PREF_BRANCH_DEFAULT,
+        ).then(
+            {
+                logger.info("[LINGUASURF_PREF] $pref=false branch=default applied")
+                GeckoResult<Void>()
+            },
+            { throwable ->
+                logger.error("[LINGUASURF_PREF] failed to apply $pref on default branch", throwable)
+                GeckoResult<Void>()
+            },
+        )
+
+        GeckoPreferenceController.setGeckoPref(
+            pref,
+            false,
+            GeckoPreferenceController.PREF_BRANCH_USER,
+        ).then(
+            {
+                logger.info("[LINGUASURF_PREF] $pref=false branch=user applied")
+                GeckoResult<Void>()
+            },
+            { throwable ->
+                logger.error("[LINGUASURF_PREF] failed to apply $pref on user branch", throwable)
+                GeckoResult<Void>()
+            },
+        )
     }
 
     @VisibleForTesting

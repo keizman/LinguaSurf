@@ -424,9 +424,10 @@ class AddonsManagementFragment : Fragment(R.layout.fragment_add_ons_management) 
 
         val lines = installedAddons.joinToString(separator = "\n") { addon ->
             val name = addon.translateName(requireContext())
-            "$name -> ${addon.id}"
+            val version = addon.version.ifBlank { "unknown" }
+            "$name -> ${addon.id} -> $version"
         }
-        logger.info("Installed extensions (name -> id)\n$lines")
+        logger.info("Installed extensions (name -> id -> version)\n$lines")
 
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.addons_deeplink_installed_extensions_title)

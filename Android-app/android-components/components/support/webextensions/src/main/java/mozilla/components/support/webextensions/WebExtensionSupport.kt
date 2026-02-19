@@ -243,7 +243,8 @@ object WebExtensionSupport {
                 }
 
                 override fun onInstalled(extension: WebExtension) {
-                    logger.debug("onInstalled ${extension.id}")
+                    val version = extension.getMetadata()?.version ?: "unknown"
+                    logger.info("[LINGUASURF_EXT_INSTALLED] id=${extension.id}, version=$version")
                     // Built-in extensions are not installed by users, they are not aware of them
                     // for this reason we don't show any UI related to built-in extensions. Also,
                     // when the add-on has already been installed, we don't need to show anything
@@ -294,6 +295,8 @@ object WebExtensionSupport {
                 }
 
                 override fun onReady(extension: WebExtension) {
+                    val version = extension.getMetadata()?.version ?: "unknown"
+                    logger.info("[LINGUASURF_EXT_READY] id=${extension.id}, version=$version")
                     installedExtensions[extension.id] = extension
                 }
 

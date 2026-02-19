@@ -43,3 +43,25 @@ adb shell am start -W --user 0 -a android.intent.action.VIEW -d "linguasurf://se
 adb logcat -d | rg -n "Installed extensions \(name -> id\)|Side Translation|AddonsManagementFragment"
 ```
 
+## 5) Upgrade Extension Via Command Line
+
+```bash
+# 1) Build XPI
+cd E:\git\goog_trans\tranlation-overlay-extension
+npm run build:firefox:xpi
+
+# 2) Push new verison of XPI to device (recommended path: /data/local/tmp)
+adb push E:\git\goog_trans\tranlation-overlay-extension\dist\side-translation-1.8.15.xpi /data/local/tmp/side-translation-1.8.15.xpi
+
+# 3) Debug automation install (no manual ADD needed)
+# Adds automation flag: --ez linguasurf.auto_confirm_install true
+adb shell am start -W --user 0 -a android.intent.action.VIEW --ez linguasurf.auto_confirm_install true -d "file:///data/local/tmp/side-translation-1.8.15.xpi" -t application/x-xpinstall com.planktonfly.linguasurf
+```
+
+Machine-checkable logs:
+
+- `AddonInstallIntentProcessor: Automation mode enabled ...`
+- `AddonInstallAutomationGate: Auto-confirm requested ...`
+- `WebExtensionPromptFeature: Automation mode: auto-approved required permissions ...`
+- `WebExtensionPromptFeature: Automation mode: skipped post-install dialog ...`
+- `AddonInstallIntentProcessor: Install success: id=..., version=...`

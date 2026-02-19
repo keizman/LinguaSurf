@@ -29,12 +29,14 @@ import mozilla.components.feature.addons.AddonManager
 import mozilla.components.feature.addons.ui.AddonDialogFragment
 import mozilla.components.feature.addons.ui.AddonInstallationDialogFragment
 import mozilla.components.feature.addons.ui.PermissionsDialogFragment
+import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.lib.state.ext.flowScoped
 import mozilla.components.support.base.feature.LifecycleAwareFeature
 import mozilla.components.support.ktx.android.content.appVersionName
 import mozilla.components.ui.widgets.withCenterAlignedButtons
 import org.mozilla.fenix.BuildConfig
 import org.mozilla.fenix.R
+import org.mozilla.fenix.addons.AddonInstallAutomationGate
 import org.mozilla.fenix.addons.AddonsManagementFragmentDirections
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.pixelSizeFor
@@ -53,6 +55,7 @@ class WebExtensionPromptFeature(
     private val navController: NavController,
     private val addonManager: AddonManager = context.components.addonManager,
 ) : LifecycleAwareFeature {
+    private val logger = Logger("WebExtensionPromptFeature")
 
     /**
      * Whether or not an add-on installation is in progress.
@@ -120,6 +123,11 @@ class WebExtensionPromptFeature(
     private fun handlePostInstallationRequest(
         addon: Addon,
     ) {
+        if (AddonInstallAutomationGate.consumeAutoDismissPostInstall(addon.id)) {
+            logger.info("Automation mode: skipped post-install dialog for extensionId=${addon.id}")
+            consumePromptRequest()
+            return
+        }
         showPostInstallationDialog(addon)
     }
 
@@ -127,6 +135,17 @@ class WebExtensionPromptFeature(
         addon: Addon,
         promptRequest: WebExtensionPromptRequest.AfterInstallation.Permissions.Required,
     ) {
+        if (AddonInstallAutomationGate.consumeAutoApprovePermissions(addon.id)) {
+            logger.info("Automation mode: auto-approved required permissions for extensionId=${addon.id}")
+            handlePermissions(
+                promptRequest,
+                granted = true,
+                privateBrowsingAllowed = false,
+                technicalAndInteractionDataGranted = false,
+            )
+            return
+        }
+
         showPermissionDialog(
             addon = addon,
             promptRequest = promptRequest,
@@ -141,6 +160,17 @@ class WebExtensionPromptFeature(
         addon: Addon,
         promptRequest: WebExtensionPromptRequest.AfterInstallation.Permissions.Optional,
     ) {
+        if (AddonInstallAutomationGate.consumeAutoApprovePermissions(addon.id)) {
+            logger.info("Automation mode: auto-approved optional permissions for extensionId=${addon.id}")
+            handlePermissions(
+                promptRequest,
+                granted = true,
+                privateBrowsingAllowed = false,
+                technicalAndInteractionDataGranted = false,
+            )
+            return
+        }
+
         val shouldGrantWithoutPrompt = Addon.localizePermissions(
             promptRequest.permissions,
             context,
