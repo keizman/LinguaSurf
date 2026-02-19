@@ -13,6 +13,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import mozilla.components.feature.accounts.push.SendTabUseCases
 import mozilla.components.feature.addons.ui.translateName
+import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import org.mozilla.fenix.R
 import org.mozilla.fenix.databinding.FragmentAddOnInternalSettingsBinding
@@ -27,6 +28,7 @@ import org.mozilla.fenix.snackbar.SnackbarBinding
 class AddonInternalSettingsFragment : AddonPopupBaseFragment() {
 
     private val args by navArgs<AddonInternalSettingsFragmentArgs>()
+    private val logger = Logger("AddonInternalSettingsFragment")
     private var _binding: FragmentAddOnInternalSettingsBinding? = null
     internal val binding get() = _binding!!
     private val snackbarBinding = ViewBoundFeatureWrapper<SnackbarBinding>()
@@ -43,7 +45,10 @@ class AddonInternalSettingsFragment : AddonPopupBaseFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentAddOnInternalSettingsBinding.bind(view)
-        args.addon.installedState?.optionsPageUrl?.let {
+        val requestedPageUrl = args.pageUrl?.trim().orEmpty().ifEmpty { null }
+        val pageUrl = requestedPageUrl ?: args.addon.installedState?.optionsPageUrl
+        pageUrl?.let {
+            logger.info("Loading addon internal page for ${args.addon.id}: $it")
             engineSession?.let { engineSession ->
                 binding.addonSettingsEngineView.render(engineSession)
                 engineSession.loadUrl(it)

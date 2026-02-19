@@ -15,7 +15,9 @@ import io.mockk.verify
 import mozilla.appservices.places.BookmarkRoot
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.prompt.ShareData
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -163,6 +165,65 @@ class HomeDeepLinkIntentProcessorTest {
         assertTrue(processorHome.process(testIntent("settings_addon_manager"), navController, out, settings))
 
         verify { navController.navigate(NavGraphDirections.actionGlobalAddonsManagementFragment()) }
+        verify { out wasNot Called }
+    }
+
+    @Test
+    fun `process settings_addon list deep link`() {
+        val activityIntent = Intent()
+        every { activity.intent } returns activityIntent
+
+        assertTrue(processorHome.process(testIntent("settings_addon/list"), navController, out, settings))
+
+        verify { navController.navigate(NavGraphDirections.actionGlobalAddonsManagementFragment()) }
+        assertEquals("list", activityIntent.getStringExtra("org.mozilla.fenix.extra.OPEN_ADDON_TARGET"))
+        assertNull(activityIntent.getStringExtra("org.mozilla.fenix.extra.OPEN_ADDON_ID"))
+        verify { out wasNot Called }
+    }
+
+    @Test
+    fun `process settings_addon settings id deep link`() {
+        val activityIntent = Intent()
+        every { activity.intent } returns activityIntent
+
+        assertTrue(
+            processorHome.process(
+                testIntent("settings_addon/settings/ec1a757b-3969-4e9a-86e9-c9cd54028a1f"),
+                navController,
+                out,
+                settings,
+            ),
+        )
+
+        verify { navController.navigate(NavGraphDirections.actionGlobalAddonsManagementFragment()) }
+        assertEquals("settings", activityIntent.getStringExtra("org.mozilla.fenix.extra.OPEN_ADDON_TARGET"))
+        assertEquals(
+            "ec1a757b-3969-4e9a-86e9-c9cd54028a1f",
+            activityIntent.getStringExtra("org.mozilla.fenix.extra.OPEN_ADDON_ID"),
+        )
+        verify { out wasNot Called }
+    }
+
+    @Test
+    fun `process settings_addon options id deep link`() {
+        val activityIntent = Intent()
+        every { activity.intent } returns activityIntent
+
+        assertTrue(
+            processorHome.process(
+                testIntent("settings_addon/options/ec1a757b-3969-4e9a-86e9-c9cd54028a1f"),
+                navController,
+                out,
+                settings,
+            ),
+        )
+
+        verify { navController.navigate(NavGraphDirections.actionGlobalAddonsManagementFragment()) }
+        assertEquals("options", activityIntent.getStringExtra("org.mozilla.fenix.extra.OPEN_ADDON_TARGET"))
+        assertEquals(
+            "ec1a757b-3969-4e9a-86e9-c9cd54028a1f",
+            activityIntent.getStringExtra("org.mozilla.fenix.extra.OPEN_ADDON_ID"),
+        )
         verify { out wasNot Called }
     }
 

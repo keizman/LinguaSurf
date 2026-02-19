@@ -32,6 +32,10 @@
     <string name="preferences_dns_over_https_custom_server">Custom</string>
     <string name="addons_delete_cache">Delete addons metadata cache file</string>
     <string name="addons_sideload">Install addon from file</string>
+    <string name="addons_deeplink_installed_extensions_title">Installed extensions (name -> id)</string>
+    <string name="addons_deeplink_no_installed_extensions">No installed extensions found.</string>
+    <string name="addons_deeplink_requires_extension_id">This route requires an extension id.</string>
+    <string name="addons_deeplink_extension_not_found">Extension id not found in installed extensions: %1$s</string>
     <string name="confirm_addons_delete_cache">Are you sure to delete addons metadata cache file?</string>
     <string name="confirm_addons_delete_cache_yes">OK</string>
     <string name="confirm_addons_delete_cache_no">Cancel</string>

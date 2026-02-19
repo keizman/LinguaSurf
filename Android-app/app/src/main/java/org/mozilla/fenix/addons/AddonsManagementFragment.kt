@@ -32,6 +32,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.LinearLayoutManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
@@ -46,11 +47,13 @@ import mozilla.components.feature.addons.AddonManager
 import mozilla.components.feature.addons.AddonManagerException
 import mozilla.components.feature.addons.ui.AddonsManagerAdapter
 import mozilla.components.feature.addons.ui.AddonsManagerAdapterDelegate
+import mozilla.components.feature.addons.ui.translateName
 import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.ktx.android.view.hideKeyboard
 import mozilla.components.support.webextensions.WebExtensionSupport
 import org.mozilla.fenix.BrowserDirection
 import org.mozilla.fenix.HomeActivity
+import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
 import org.mozilla.fenix.databinding.FragmentAddOnsManagementBinding
 import org.mozilla.fenix.ext.components
@@ -75,6 +78,13 @@ class AddonsManagementFragment : Fragment(R.layout.fragment_add_ons_management) 
         private const val LINGUASURF_BUILTIN_EXTENSION_ID_NO_BRACES = "ec1a757b-3969-4e9a-86e9-c9cd54028a1f"
         private const val LINGUASURF_BUILTIN_EXTENSION_DIR_URL =
             "resource://android/assets/extensions/linguasurf/"
+        private const val TARGET_MANAGER = "manager"
+        private const val TARGET_LIST = "list"
+        private const val TARGET_DETAILS = "details"
+        private const val TARGET_SETTINGS = "settings"
+        private const val TARGET_OPTIONS = "options"
+        private const val EXTRA_OPEN_ADDON_ID = "org.mozilla.fenix.extra.OPEN_ADDON_ID"
+        private const val EXTRA_OPEN_ADDON_TARGET = "org.mozilla.fenix.extra.OPEN_ADDON_TARGET"
     }
 
     private val logger = Logger("AddonsManagementFragment")
@@ -86,6 +96,8 @@ class AddonsManagementFragment : Fragment(R.layout.fragment_add_ons_management) 
     private var adapter: AddonsManagerAdapter? = null
 
     private var addonImportFilePicker: ActivityResultLauncher<Intent>? = null
+    private val args by navArgs<AddonsManagementFragmentArgs>()
+    private var hasHandledOpenAddonRoute = false
 
     private val browsingModeManager by lazy {
         (activity as HomeActivity).browsingModeManager
@@ -127,8 +139,24 @@ class AddonsManagementFragment : Fragment(R.layout.fragment_add_ons_management) 
         menuHost.addMenuProvider(
             object : MenuProvider {
                 override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
-                    inflater.inflate(R.menu.addons_menu, menu)
-                    val searchItem = menu.findItem(R.id.search)
+                    val menuResId = resources.getIdentifier("addons_menu", "menu", requireContext().packageName)
+                    if (menuResId == 0) {
+                        logger.warn("Add-ons menu resource not found for this build variant")
+                        return
+                    }
+                    inflater.inflate(menuResId, menu)
+
+                    val searchMenuId = resources.getIdentifier("search", "id", requireContext().packageName)
+                    if (searchMenuId == 0) {
+                        logger.warn("Add-ons search menu id not found for this build variant")
+                        return
+                    }
+
+                    val searchItem = menu.findItem(searchMenuId)
+                    if (searchItem == null) {
+                        logger.warn("Add-ons search menu item missing in inflated menu")
+                        return
+                    }
                     val searchView: SearchView = searchItem.actionView as SearchView
                     searchView.imeOptions = EditorInfo.IME_ACTION_DONE
                     searchView.queryHint = getString(R.string.addons_search_hint)
@@ -150,16 +178,22 @@ class AddonsManagementFragment : Fragment(R.layout.fragment_add_ons_management) 
 
                 override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
                     // Handle the menu selection
+                    val deleteCacheMenuId = resources.getIdentifier("addons_delete_cache", "id", requireContext().packageName)
+                    val sideloadMenuId = resources.getIdentifier("addons_sideload", "id", requireContext().packageName)
+                    val searchMenuId = resources.getIdentifier("search", "id", requireContext().packageName)
                     return when (menuItem.itemId) {
-                        R.id.addons_delete_cache -> {
+                        deleteCacheMenuId -> {
                             showAlertDialog()
                             true
                         }
-                        R.id.addons_sideload -> {
+                        sideloadMenuId -> {
+                            if (sideloadMenuId == 0) {
+                                return false
+                            }
                             installFromFile()
                             true
                         }
-                        R.id.search -> {
+                        searchMenuId -> {
                             true
                         }
                         else -> {true}
@@ -334,6 +368,8 @@ class AddonsManagementFragment : Fragment(R.layout.fragment_add_ons_management) 
                         if (shouldRefresh) {
                             adapter?.updateAddons(addons)
                         }
+
+                        handleOpenAddonRouteIfNeeded(addons)
                     }
                 }
             } catch (e: AddonManagerException) {
@@ -351,6 +387,113 @@ class AddonsManagementFragment : Fragment(R.layout.fragment_add_ons_management) 
                 }
             }
         }
+    }
+
+    private fun handleOpenAddonRouteIfNeeded(allAddons: List<Addon>) {
+        if (hasHandledOpenAddonRoute) {
+            return
+        }
+        hasHandledOpenAddonRoute = true
+        val openAddonTarget = requestedOpenAddonTarget()
+        val openAddonId = requestedOpenAddonId()
+
+        when (openAddonTarget) {
+            TARGET_MANAGER -> Unit
+            TARGET_LIST -> showInstalledAddonIdList(allAddons)
+            TARGET_DETAILS, TARGET_SETTINGS, TARGET_OPTIONS -> openAddonByIdTarget(
+                allAddons = allAddons,
+                addonId = openAddonId,
+                target = openAddonTarget,
+            )
+            else -> {
+                logger.warn("Unknown addon deep link target: $openAddonTarget")
+            }
+        }
+
+        clearOpenAddonRouteExtras()
+    }
+
+    private fun showInstalledAddonIdList(allAddons: List<Addon>) {
+        val installedAddons = allAddons.filter { it.isInstalled() }
+        if (installedAddons.isEmpty()) {
+            binding?.let {
+                showSnackBar(it.root, getString(R.string.addons_deeplink_no_installed_extensions))
+            }
+            return
+        }
+
+        val lines = installedAddons.joinToString(separator = "\n") { addon ->
+            val name = addon.translateName(requireContext())
+            "$name -> ${addon.id}"
+        }
+        logger.info("Installed extensions (name -> id)\n$lines")
+
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.addons_deeplink_installed_extensions_title)
+            .setMessage(lines)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun openAddonByIdTarget(
+        allAddons: List<Addon>,
+        addonId: String?,
+        target: String,
+    ) {
+        val requestedId = addonId?.trim().orEmpty()
+        if (requestedId.isEmpty()) {
+            binding?.let {
+                showSnackBar(it.root, getString(R.string.addons_deeplink_requires_extension_id))
+            }
+            return
+        }
+
+        val addon = allAddons.firstOrNull { it.isInstalled() && addonIdsMatch(it.id, requestedId) }
+        if (addon == null) {
+            binding?.let {
+                showSnackBar(
+                    it.root,
+                    getString(R.string.addons_deeplink_extension_not_found, requestedId),
+                )
+            }
+            return
+        }
+
+        val openTarget = when (target) {
+            TARGET_SETTINGS -> TARGET_SETTINGS
+            TARGET_OPTIONS -> TARGET_OPTIONS
+            else -> TARGET_DETAILS
+        }
+
+        val direction = NavGraphDirections.actionGlobalToInstalledAddonDetailsFragment(
+            addon = addon,
+            openTarget = openTarget,
+        )
+        findNavController().navigate(direction)
+    }
+
+    private fun addonIdsMatch(left: String, right: String): Boolean {
+        return normalizeAddonId(left) == normalizeAddonId(right)
+    }
+
+    private fun normalizeAddonId(id: String): String {
+        return id.trim().removePrefix("{").removeSuffix("}").lowercase(Locale.ROOT)
+    }
+
+    private fun requestedOpenAddonTarget(): String {
+        val targetFromIntent = activity?.intent?.getStringExtra(EXTRA_OPEN_ADDON_TARGET)
+        val rawTarget = targetFromIntent ?: args.openAddonTarget
+        return rawTarget.lowercase(Locale.ROOT)
+    }
+
+    private fun requestedOpenAddonId(): String? {
+        val idFromIntent = activity?.intent?.getStringExtra(EXTRA_OPEN_ADDON_ID)
+        return idFromIntent ?: args.openAddonId
+    }
+
+    private fun clearOpenAddonRouteExtras() {
+        activity?.intent?.removeExtra(EXTRA_OPEN_ADDON_ID)
+        activity?.intent?.removeExtra(EXTRA_OPEN_ADDON_TARGET)
     }
 
     private suspend fun findLinguaSurfBuiltInExtension(): WebExtension? {

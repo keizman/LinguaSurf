@@ -1411,6 +1411,10 @@
         <argument
             android:name="addon"
             app:argType="mozilla.components.feature.addons.Addon" />
+        <argument
+            android:name="openTarget"
+            android:defaultValue="details"
+            app:argType="string" />
     </fragment>
     <fragment
         android:id="@+id/notYetSupportedAddonFragment"
@@ -1435,6 +1439,11 @@
         <argument
             android:name="addon"
             app:argType="mozilla.components.feature.addons.Addon" />
+        <argument
+            android:name="pageUrl"
+            android:defaultValue="@null"
+            app:argType="string"
+            app:nullable="true" />
     </fragment>
 
     <navigation
@@ -1458,6 +1467,15 @@
                 android:defaultValue="@null"
                 app:argType="string"
                 app:nullable="true" />
+            <argument
+                android:name="openAddonId"
+                android:defaultValue="@null"
+                app:argType="string"
+                app:nullable="true" />
+            <argument
+                android:name="openAddonTarget"
+                android:defaultValue="manager"
+                app:argType="string" />
         </fragment>
     </navigation>
 

@@ -23,9 +23,18 @@ import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.ext.alreadyOnDestination
 import org.mozilla.fenix.ext.openSetDefaultBrowserOption
 import org.mozilla.fenix.utils.maybeShowAddSearchWidgetPrompt
+import java.util.Locale
 import org.mozilla.fenix.utils.Settings as AppSettings
 
 private const val EXTRA_COMPOSABLE_TOOLBAR = "EXTRA_COMPOSABLE_TOOLBAR"
+private const val HOST_SETTINGS_ADDON = "settings_addon"
+private const val ADDON_TARGET_MANAGER = "manager"
+private const val ADDON_TARGET_LIST = "list"
+private const val ADDON_TARGET_DETAILS = "details"
+private const val ADDON_TARGET_SETTINGS = "settings"
+private const val ADDON_TARGET_OPTIONS = "options"
+private const val EXTRA_OPEN_ADDON_ID = "org.mozilla.fenix.extra.OPEN_ADDON_ID"
+private const val EXTRA_OPEN_ADDON_TARGET = "org.mozilla.fenix.extra.OPEN_ADDON_TARGET"
 
 /**
  * Deep links in the form of `fenix://host` open different parts of the app.
@@ -54,6 +63,10 @@ class HomeDeepLinkIntentProcessor(
         navController: NavController,
     ) {
         handleDeepLinkSideEffects(deepLink, extras, settings, navController)
+        if (deepLink.host == HOST_SETTINGS_ADDON) {
+            openAddonsDeepLinkRoute(deepLink, navController)
+            return
+        }
 
         val globalDirections = when (deepLink.host) {
             "home", "enable_private_browsing" -> GlobalDirections.Home
@@ -83,6 +96,58 @@ class HomeDeepLinkIntentProcessor(
             navController.navigate(globalDirections.navDirections)
         }
     }
+
+    private fun openAddonsDeepLinkRoute(
+        deepLink: Uri,
+        navController: NavController,
+    ) {
+        val route = parseAddonsRoute(deepLink)
+        activity.intent?.apply {
+            if (route.addonId.isNullOrEmpty()) {
+                removeExtra(EXTRA_OPEN_ADDON_ID)
+            } else {
+                putExtra(EXTRA_OPEN_ADDON_ID, route.addonId)
+            }
+            putExtra(EXTRA_OPEN_ADDON_TARGET, route.target)
+        }
+        navController.navigate(GlobalDirections.SettingsAddonManager.navDirections)
+    }
+
+    private fun parseAddonsRoute(deepLink: Uri): AddonsDeepLinkRoute {
+        val segments = deepLink.pathSegments
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        if (segments.isEmpty()) {
+            return AddonsDeepLinkRoute(target = ADDON_TARGET_MANAGER, addonId = null)
+        }
+
+        val target = when (segments.first().lowercase(Locale.ROOT)) {
+            ADDON_TARGET_MANAGER -> ADDON_TARGET_MANAGER
+            ADDON_TARGET_LIST -> ADDON_TARGET_LIST
+            ADDON_TARGET_DETAILS -> ADDON_TARGET_DETAILS
+            ADDON_TARGET_SETTINGS -> ADDON_TARGET_SETTINGS
+            ADDON_TARGET_OPTIONS -> ADDON_TARGET_OPTIONS
+            else -> ADDON_TARGET_MANAGER
+        }
+
+        val addonId = when (target) {
+            ADDON_TARGET_DETAILS, ADDON_TARGET_SETTINGS, ADDON_TARGET_OPTIONS ->
+                normalizeAddonId(segments.getOrNull(1) ?: deepLink.getQueryParameter("addon_id"))
+            else -> null
+        }
+
+        return AddonsDeepLinkRoute(target = target, addonId = addonId)
+    }
+
+    private fun normalizeAddonId(raw: String?): String? {
+        val id = raw?.trim().orEmpty()
+        return id.ifEmpty { null }
+    }
+
+    private data class AddonsDeepLinkRoute(
+        val target: String,
+        val addonId: String?,
+    )
 
     /**
      * Handle links that require more than just simple navigation.

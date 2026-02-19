@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.addons
 
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -40,9 +41,17 @@ import mozilla.components.feature.addons.R as addonsR
  */
 @Suppress("LargeClass", "TooManyFunctions")
 class InstalledAddonDetailsFragment : Fragment() {
+    private companion object {
+        private const val OPEN_TARGET_DETAILS = "details"
+        private const val OPEN_TARGET_SETTINGS = "settings"
+        private const val OPEN_TARGET_OPTIONS = "options"
+    }
+
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal lateinit var addon: Addon
     internal val logger = Logger("InstalledAddonDetailsFragment")
+    private var openTarget: String = OPEN_TARGET_DETAILS
+    private var hasHandledInitialTarget = false
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal val binding get() = _binding!!
@@ -57,7 +66,9 @@ class InstalledAddonDetailsFragment : Fragment() {
         savedInstanceState: Bundle?,
     ): View {
         if (!::addon.isInitialized) {
-            addon = AddonDetailsFragmentArgs.fromBundle(requireNotNull(arguments)).addon
+            val args = InstalledAddonDetailsFragmentArgs.fromBundle(requireNotNull(arguments))
+            addon = args.addon
+            openTarget = args.openTarget
         }
 
         setBindingAndBindUI(
@@ -119,6 +130,7 @@ class InstalledAddonDetailsFragment : Fragment() {
                     withContext(Dispatchers.Main) {
                         binding.addOnProgressBar.isVisible = false
                         binding.addonContainer.isVisible = true
+                        handleInitialTargetIfNeeded()
                     }
                 }
             } catch (e: AddonManagerException) {
@@ -349,26 +361,7 @@ class InstalledAddonDetailsFragment : Fragment() {
     private fun bindSettings() {
         binding.settings.apply {
             isVisible = shouldSettingsBeVisible()
-            setOnClickListener { v ->
-                val settingUrl = addon.installedState?.optionsPageUrl ?: return@setOnClickListener
-                val directions = if (addon.installedState?.openOptionsPageInTab == true) {
-                    val components = v.context.components
-                    val shouldCreatePrivateSession = v.context.components.appStore.state.mode.isPrivate
-
-                    // If the addon settings page is already open in a tab, select that one
-                    components.useCases.tabsUseCases.selectOrAddTab(
-                        url = settingUrl,
-                        private = shouldCreatePrivateSession,
-                        ignoreFragment = true,
-                    )
-
-                    InstalledAddonDetailsFragmentDirections.actionGlobalBrowser(null)
-                } else {
-                    InstalledAddonDetailsFragmentDirections
-                        .actionInstalledAddonFragmentToAddonInternalSettingsFragment(addon)
-                }
-                this.findNavController().navigate(directions)
-            }
+            setOnClickListener { v -> openAddonSettings(v) }
         }
     }
 
@@ -444,4 +437,69 @@ class InstalledAddonDetailsFragment : Fragment() {
     }
 
     private fun shouldSettingsBeVisible() = !addon.installedState?.optionsPageUrl.isNullOrEmpty()
+
+    private fun handleInitialTargetIfNeeded() {
+        if (hasHandledInitialTarget) {
+            return
+        }
+        hasHandledInitialTarget = true
+
+        if (!shouldSettingsBeVisible()) {
+            return
+        }
+
+        when (openTarget) {
+            OPEN_TARGET_SETTINGS -> openAddonSettings(binding.settings)
+            OPEN_TARGET_OPTIONS -> openAddonOptions(binding.settings)
+        }
+    }
+
+    private fun openAddonSettings(anchorView: View) {
+        val settingUrl = addon.installedState?.optionsPageUrl ?: return
+        openAddonPage(anchorView, settingUrl)
+    }
+
+    private fun openAddonOptions(anchorView: View) {
+        val settingUrl = addon.installedState?.optionsPageUrl ?: return
+        val popupUrl = resolvePopupPageUrl(settingUrl)
+        if (popupUrl == null) {
+            logger.warn("Addon options deep link fallback to settings URL for ${addon.id}")
+            openAddonPage(anchorView, settingUrl)
+            return
+        }
+
+        logger.info("Addon options deep link opening popup URL for ${addon.id}: $popupUrl")
+        openAddonPage(anchorView, popupUrl)
+    }
+
+    private fun resolvePopupPageUrl(settingsUrl: String): String? {
+        val uri = Uri.parse(settingsUrl)
+        val path = uri.path ?: return null
+        if (!path.endsWith("options.html")) {
+            return null
+        }
+
+        val popupPath = path.removeSuffix("options.html") + "popup.html"
+        return uri.buildUpon().path(popupPath).build().toString()
+    }
+
+    private fun openAddonPage(anchorView: View, pageUrl: String) {
+        val directions = if (addon.installedState?.openOptionsPageInTab == true) {
+            val components = anchorView.context.components
+            val shouldCreatePrivateSession = anchorView.context.components.appStore.state.mode.isPrivate
+
+            // If the addon page is already open in a tab, select that one.
+            components.useCases.tabsUseCases.selectOrAddTab(
+                url = pageUrl,
+                private = shouldCreatePrivateSession,
+                ignoreFragment = true,
+            )
+
+            InstalledAddonDetailsFragmentDirections.actionGlobalBrowser(null)
+        } else {
+            InstalledAddonDetailsFragmentDirections
+                .actionInstalledAddonFragmentToAddonInternalSettingsFragment(addon, pageUrl)
+        }
+        anchorView.findNavController().navigate(directions)
+    }
 }
